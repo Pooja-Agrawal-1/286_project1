@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cstdint>
 #include <bitset>
+#include <string>
 
 using namespace std;
 
@@ -69,46 +70,46 @@ string regName(uint8_t reg) {
 Create a function to print a human-readable MIPS instruction
 based on opcode and funct fields.
 */
-void printInstruction(uint32_t instruction) {
+void printInstruction(uint32_t instruction, ofstream& out, uint32_t pcAddr) {
     MIPSInstruction inst(instruction);
 
     if (inst.opcode == 0) {  // R-type
         switch (inst.funct) {
 
             case 32: // add
-                cout << "add " << regName(inst.rd) << ", "
+                out << "add " << regName(inst.rd) << ", "
                      << regName(inst.rs) << ", "
                      << regName(inst.rt);
                 break;
 
             case 33: // addu
-                cout << "addu " << regName(inst.rd) << ", "
+                out << "addu " << regName(inst.rd) << ", "
                      << regName(inst.rs) << ", "
                      << regName(inst.rt);
                 break;
 
             case 8: // jr
-                cout << "jr " << regName(inst.rs);
+                out << "jr " << regName(inst.rs);
                 break;
 
             case 0: // sll
-                cout << "sll " << regName(inst.rd) << ", "
+                out << "sll " << regName(inst.rd) << ", "
                      << regName(inst.rt) << ", "
                      << (int)inst.shamt;
                 break;
 
             case 42: // slt
-                cout << "slt " << regName(inst.rd) << ", "
+                out << "slt " << regName(inst.rd) << ", "
                      << regName(inst.rs) << ", "
                      << regName(inst.rt);
                 break;
 
             case 12: // syscall
-                cout << "syscall";
+                out << "syscall";
                 break;
 
             default:
-                cout << "Unknown R-type instruction";
+                out << "Unknown R-type instruction";
         }
     }
 
@@ -116,82 +117,79 @@ void printInstruction(uint32_t instruction) {
         switch (inst.opcode) {
 
             case 8: // addi
-                cout << "addi " << regName(inst.rt) << ", "
+                out << "addi " << regName(inst.rt) << ", "
                      << regName(inst.rs) << ", "
                      << inst.immediate;
                 break;
 
             case 9: // addiu
-                cout << "addiu " << regName(inst.rt) << ", "
+                out << "addiu " << regName(inst.rt) << ", "
                      << regName(inst.rs) << ", "
                      << inst.immediate;
                 break;
 
             case 4: // beq
-                cout << "beq " << regName(inst.rs) << ", "
+                out << "beq " << regName(inst.rs) << ", "
                      << regName(inst.rt) << ", "
                      << inst.immediate;
                 break;
 
             case 5: // bne
-                cout << "bne " << regName(inst.rs) << ", "
+                out << "bne " << regName(inst.rs) << ", "
                      << regName(inst.rt) << ", "
                      << inst.immediate;
                 break;
 
             case 2: // j
-                cout << "j " << inst.address;
+                out << "j " << (((pcAddr + 4) & 0xF0000000) | (inst.address << 2));
                 break;
 
             case 3: // jal
-                cout << "jal " << inst.address;
+                out << "jal " << (((pcAddr + 4) & 0xF0000000) | (inst.address << 2));
                 break;
 
             case 15: // lui
-                cout << "lui " << regName(inst.rt) << ", "
+                out << "lui " << regName(inst.rt) << ", "
                      << inst.immediate;
                 break;
 
             case 35: // lw
-                cout << "lw " << regName(inst.rt) << ", "
+                out << "lw " << regName(inst.rt) << ", "
                      << inst.immediate << "("
                      << regName(inst.rs) << ")";
                 break;
 
             case 43: // sw
-                cout << "sw " << regName(inst.rt) << ", "
+                out << "sw " << regName(inst.rt) << ", "
                      << inst.immediate << "("
                      << regName(inst.rs) << ")";
                 break;
 
             case 13: // ori
-                cout << "ori " << regName(inst.rt) << ", "
+                out << "ori " << regName(inst.rt) << ", "
                      << regName(inst.rs) << ", "
                      << inst.immediate;
                 break;
 
             case 28: // mul (SPECIAL2)
                 if (inst.funct == 2) {
-                    cout << "mul " << regName(inst.rd) << ", "
+                    out << "mul " << regName(inst.rd) << ", "
                          << regName(inst.rs) << ", "
                          << regName(inst.rt);
                 } else {
-                    cout << "Unknown mul variant";
+                    out << "Unknown mul variant";
                 }
                 break;
 
             default:
-                cout << "Unknown instruction";
+                out << "Unknown instruction";
         }
     }
 
-    cout << endl;
+    out << endl;
 }
 
-void simulate(uint32_t PC,
-              uint32_t dataAddr,
-              uint32_t numData,
-              map<uint32_t,int32_t>& MEM)
+void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int32_t>& MEM, ofstream& out, uint32_t initSP)
 {
     uint32_t cycle = 1;
     bool running = true;
@@ -202,12 +200,12 @@ void simulate(uint32_t PC,
         uint32_t instruction = (uint32_t)MEM[PC];
         MIPSInstruction inst(instruction);
 
-        cout << "Cycle " << cycle << ":" << endl;
+        out << "Cycle " << cycle << ":" << endl;
 
-        cout << "Fetched: "
-             << currentPC << " : "
-             << bitset<32>(instruction) << " : ";
-        printInstruction(instruction);
+        out << "Fetched: "
+             << currentPC << ":" << "\t"
+             << bitset<32>(instruction) << "\t";
+        printInstruction(instruction, out, PC);
 
         PC += 4;  // default next instruction
 
@@ -291,41 +289,47 @@ void simulate(uint32_t PC,
 
         // ================= PRINT REGISTERS =================
 
-        cout << "Registers:" << endl;
+        out << "Registers:" << endl;
 
-        for (int i = 0; i < 16; i++) {
-            cout << setw(10) << regName(i)
-                 << ": " << setw(10) << REG[i]
-                 << "    "
-                 << setw(10) << regName(i+16)
-                 << ": " << setw(10) << REG[i+16]
+        for (int i = 0; i < 32; i+=4) {
+            out << left << setw(16) << (regName(i) + ":")
+                 << right << setw(16) << REG[i] << "\t"
+                 << left << setw(16) << (regName(i+1) + ":")
+                 << right << setw(16) << REG[i+1] << "\t"
+                 << left << setw(16) << (regName(i+2) + ":")
+                 << right << setw(16) << REG[i+2] << "\t"
+                 << left << setw(16) << (regName(i+3) + ":")
+                 << right << setw(16) << REG[i+3]
                  << endl;
         }
 
         // ================= DATA SECTION =================
 
-        cout << "Data Section:" << endl;
+        out << "Data Section:" << endl;
         for (uint32_t addr = dataAddr;
              addr < dataAddr + numData*4;
              addr += 4)
         {
-            cout << addr << " : "
+            out << addr << " : "
                  << MEM[addr] << endl;
         }
 
         // ================= STACK SECTION =================
 
-        cout << "Stack Section:" << endl;
+        out << "Stack Section:" << endl;
 
-        for (auto &entry : MEM) {
-            if (entry.first >= REG[29]) {
-                cout << entry.first
-                     << " : "
-                     << entry.second << endl;
+        for (uint32_t addr = REG[29]; addr < initSP; addr +=4) {
+            out << addr << ":";
+            if (MEM.find(addr) != MEM.end()) {
+                out << MEM[addr];
             }
+            else{
+                out << 0;
+            }
+            out << endl;
         }
 
-        cout << "--------------------------------------------------"
+        out << "--------------------------------------------------"
              << endl;
 
         cycle++;
@@ -344,14 +348,20 @@ Main function:
 */
 int main(int argc, char* argv[]) {
 
-    if (argc < 2) {
-        cerr << "Usage: ./proj1 <binaryfile>" << endl;
+    if (argc < 3) {
+        cerr << "Usage: ./proj1 <binaryfile> <output_filename>" << endl;
         return 1;
     }
 
     ifstream file(argv[1], ios::binary);
     if (!file) {
         cerr << "Error opening file." << endl;
+        return 1;
+    }
+
+    ofstream outFile(argv[2]);
+    if (!outFile){
+        cerr << "Error opening output file." << endl;
         return 1;
     }
 
@@ -394,18 +404,18 @@ int main(int argc, char* argv[]) {
     file.close();
 
 // Print stored header values
-cout << "initialPC: " << PC << endl;
-cout << "dataStartAddress: " << dataAddr << endl;
-cout << "initialStackPointer: " << SP << endl;
-cout << "Number of data items: " << numData << endl;
+outFile << "initialPC: " << PC << endl;
+outFile << "dataStartAddress: " << dataAddr << endl;
+outFile << "initialStackPointer: " << SP << endl;
+outFile << "Number of data items: " << numData << endl;
 
 // Print DATA values
 for (uint32_t addr = dataAddr; addr < dataAddr + numData * 4; addr += 4) {
 
     uint32_t value = static_cast<uint32_t>(MEM[addr]);
 
-    cout << left
-         << setw(12) << addr              // Address column
+    outFile << left
+         << setw(12) << (to_string(addr) + ":")              // Address column
          << setw(35) << bitset<32>(value) // Binary column
          << value                         // Decimal column
          << endl;
@@ -419,13 +429,14 @@ for (uint32_t addr = PC; addr < PC + (MEM.size() - numData) * 4; addr += 4) {
 
     uint32_t instruction = static_cast<uint32_t>(MEM[addr]);
 
-    cout << left
-         << setw(12) << addr                       // Address column
+    outFile << left
+         << setw(12) << (to_string(addr) + ":")                       // Address column
          << setw(35) << bitset<32>(instruction);   // Binary column
 
-    printInstruction(instruction);                 // Text column
+    printInstruction(instruction, outFile, PC);                 // Text column
 }
 
 REG[29] = SP;    //hardcoded $sp value
-simulate(PC, dataAddr, numData, MEM);
+uint32_t initialSP = SP; //hardcoded $sp value to keep track of the beginning
+simulate(PC, dataAddr, numData, MEM, outFile, initialSP);
 }

@@ -40,6 +40,8 @@ struct MIPSInstruction {
     MIPSInstruction(uint32_t instruction) {
         raw = instruction;
 
+        //this shifts the instruction binary to the right by a certain amount of bits 
+        //the hex takes the last n bits and zeros everything else
         opcode = (instruction >> 26) & 0x3F;
         rs     = (instruction >> 21) & 0x1F;
         rt     = (instruction >> 16) & 0x1F;
@@ -51,6 +53,7 @@ struct MIPSInstruction {
     }
 };
 
+//function that returns the register name from a list of registers (stored in ascending order by memory) given the index
 string regName(uint8_t reg) {
     static const string names[32] = {
         "$zero", "$at",
@@ -191,6 +194,7 @@ void printInstruction(uint32_t instruction, ofstream& out, uint32_t pcAddr) {
     out << endl;
 }
 
+//function that simulates all the instructions by executing their operation based on the function code
 void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int32_t>& MEM, ofstream& out, uint32_t initSP)
 {
     uint32_t cycle = 1;
@@ -352,7 +356,7 @@ Main function:
 int main(int argc, char* argv[]) {
 
     if (argc < 3) {
-        cerr << "Usage: ./proj1 <binaryfile> <output_filename>" << endl;
+        cerr << "Usage: ./simulate <binaryfile> <output_filename>" << endl;
         return 1;
     }
 

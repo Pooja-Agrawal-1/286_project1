@@ -1,3 +1,5 @@
+//To make this project, we used Codex in Chat mode to help sort out the logic and certain functions
+
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -13,7 +15,7 @@ using namespace std;
 int32_t REG[32] = {0};
 
 /*
-Create a struct to represent all fields possible in R, I, and J type MIPS instructions.
+Struct to represent all fields possible in R, I, and J type MIPS instructions.
 The constructor takes a 32-bit integer and extracts all fields.
 */
 struct MIPSInstruction {
@@ -44,7 +46,7 @@ struct MIPSInstruction {
         rd     = (instruction >> 11) & 0x1F;
         shamt  = (instruction >> 6)  & 0x1F;
         funct  = instruction & 0x3F;
-        immediate = instruction & 0xFFFF;
+        immediate = static_cast<int16_t>(instruction & 0xFFFF);
         address = instruction & 0x03FFFFFF;
     }
 };
@@ -67,7 +69,7 @@ string regName(uint8_t reg) {
 }
 
 /*
-Create a function to print a human-readable MIPS instruction
+Function to print a human-readable MIPS instruction
 based on opcode and funct fields.
 */
 void printInstruction(uint32_t instruction, ofstream& out, uint32_t pcAddr) {
@@ -195,7 +197,6 @@ void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int
     bool running = true;
 
     while (running) {
-
         uint32_t currentPC = PC;
         uint32_t instruction = (uint32_t)MEM[PC];
         MIPSInstruction inst(instruction);
@@ -232,7 +233,9 @@ void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int
                     break;
 
                 case 12: // syscall
-                    running = false;
+                    if(REG[2]==10){
+                        running = false;
+                    }
                     break;
             }
         }
@@ -247,21 +250,21 @@ void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int
 
                 case 4: // beq
                     if (REG[inst.rs] == REG[inst.rt])
-                        PC = currentPC + 4 + (inst.immediate << 2);
+                        PC = currentPC + 4 + (static_cast<int32_t>(inst.immediate) << 2);
                     break;
 
                 case 5: // bne
                     if (REG[inst.rs] != REG[inst.rt])
-                        PC = currentPC + 4 + (inst.immediate << 2);
+                        PC = currentPC + 4 + (static_cast<int32_t>(inst.immediate << 2));
                     break;
 
                 case 2: // j
-                    PC = (currentPC & 0xF0000000) | (inst.address << 2);
+                    PC = ((currentPC+4) & 0xF0000000) | (inst.address << 2);
                     break;
 
                 case 3: // jal
                     REG[31] = PC;
-                    PC = (currentPC & 0xF0000000) | (inst.address << 2);
+                    PC = ((currentPC+4) & 0xF0000000) | (inst.address << 2);
                     break;
 
                 case 15: // lui
@@ -269,8 +272,7 @@ void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int
                     break;
 
                 case 35: // lw
-                    REG[inst.rt] =
-                        MEM[REG[inst.rs] + inst.immediate];
+                    REG[inst.rt] = MEM[REG[inst.rs] + inst.immediate];
                     break;
 
                 case 43: // sw
@@ -340,11 +342,12 @@ void simulate(uint32_t PC, uint32_t dataAddr, uint32_t numData, map<uint32_t,int
 Main function:
 - Reads filename from command line
 - Opens file in binary mode
+- creates/overwrites output file based on name
 - Reads 32-bit unsigned integers
 - Reverses endianness
 - Stores values in MEM map
-- prints each instruction
-- prints each cycle of simulation
+- prints each instruction to output file
+- prints each cycle of simulation to output file
 */
 int main(int argc, char* argv[]) {
 
